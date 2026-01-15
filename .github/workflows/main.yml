@@ -1,50 +1,53 @@
-name: Linux-RDP
+name: Linux-RDP-Fixed
 
 on:
   workflow_dispatch:
 
 jobs:
-  linux-rdp:
+  rdp:
     runs-on: ubuntu-latest
-    timeout-minutes: 3600
+    timeout-minutes: 360
 
     steps:
-      - name: Update system
+      - name: Install desktop and XRDP
         run: |
-          sudo apt update -y
-          sudo apt upgrade -y
-
-      - name: Install Desktop + RDP
-        run: |
+          sudo apt update
           sudo apt install -y \
             xfce4 xfce4-goodies \
-            xrdp dbus-x11
+            xrdp dbus-x11 \
+            xorgxrdp
 
           sudo systemctl enable xrdp
-          sudo systemctl restart xrdp
+          sudo systemctl enable xrdp-sesman
+
+      - name: Disable Wayland
+        run: |
+          sudo sed -i 's/^#WaylandEnable=false/WaylandEnable=false/' /etc/gdm3/custom.conf || true
 
       - name: Create RDP user
         run: |
           USER=rdp
-          PASS=$(openssl rand -base64 16)
+          PASS=$(openssl rand -base64 12)
 
           sudo useradd -m -s /bin/bash $USER
           echo "$USER:$PASS" | sudo chpasswd
-          sudo adduser $USER sudo
+          sudo usermod -aG sudo $USER
 
           echo "RDP_USER=$USER" >> $GITHUB_ENV
           echo "RDP_PASS=$PASS" >> $GITHUB_ENV
 
-      - name: Set XFCE for RDP
+      - name: Configure XFCE session
         run: |
-          echo "startxfce4" > ~/.xsession
+          echo "xfce4-session" | sudo tee /home/rdp/.xsession
+          sudo chown rdp:rdp /home/rdp/.xsession
+
           sudo systemctl restart xrdp
 
       - name: Install Tailscale
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh
 
-      - name: Connect to Tailscale
+      - name: Connect Tailscale
         run: |
           sudo tailscale up \
             --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} \
@@ -53,19 +56,17 @@ jobs:
           tailscale ip -4 | tee ts_ip.txt
           echo "TAILSCALE_IP=$(cat ts_ip.txt)" >> $GITHUB_ENV
 
-      - name: Show RDP Info
+      - name: Show RDP info
         run: |
           echo "=============================="
-          echo " Linux RDP Ready"
-          echo " Address : $TAILSCALE_IP"
-          echo " Username: $RDP_USER"
-          echo " Password: $RDP_PASS"
-          echo " Port    : 3389"
+          echo " Address  : $TAILSCALE_IP"
+          echo " Port     : 3389"
+          echo " Username : $RDP_USER"
+          echo " Password : $RDP_PASS"
           echo "=============================="
 
-      - name: Keep Alive
+      - name: Keep alive
         run: |
           while true; do
-            echo "[INFO] Linux RDP running..."
             sleep 300
           done
