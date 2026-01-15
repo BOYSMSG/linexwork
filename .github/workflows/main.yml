@@ -1,0 +1,71 @@
+name: Linux-RDP
+
+on:
+  workflow_dispatch:
+
+jobs:
+  linux-rdp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3600
+
+    steps:
+      - name: Update system
+        run: |
+          sudo apt update -y
+          sudo apt upgrade -y
+
+      - name: Install Desktop + RDP
+        run: |
+          sudo apt install -y \
+            xfce4 xfce4-goodies \
+            xrdp dbus-x11
+
+          sudo systemctl enable xrdp
+          sudo systemctl restart xrdp
+
+      - name: Create RDP user
+        run: |
+          USER=rdp
+          PASS=$(openssl rand -base64 16)
+
+          sudo useradd -m -s /bin/bash $USER
+          echo "$USER:$PASS" | sudo chpasswd
+          sudo adduser $USER sudo
+
+          echo "RDP_USER=$USER" >> $GITHUB_ENV
+          echo "RDP_PASS=$PASS" >> $GITHUB_ENV
+
+      - name: Set XFCE for RDP
+        run: |
+          echo "startxfce4" > ~/.xsession
+          sudo systemctl restart xrdp
+
+      - name: Install Tailscale
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+
+      - name: Connect to Tailscale
+        run: |
+          sudo tailscale up \
+            --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} \
+            --hostname=gh-linux-${{ github.run_id }}
+
+          tailscale ip -4 | tee ts_ip.txt
+          echo "TAILSCALE_IP=$(cat ts_ip.txt)" >> $GITHUB_ENV
+
+      - name: Show RDP Info
+        run: |
+          echo "=============================="
+          echo " Linux RDP Ready"
+          echo " Address : $TAILSCALE_IP"
+          echo " Username: $RDP_USER"
+          echo " Password: $RDP_PASS"
+          echo " Port    : 3389"
+          echo "=============================="
+
+      - name: Keep Alive
+        run: |
+          while true; do
+            echo "[INFO] Linux RDP running..."
+            sleep 300
+          done
