@@ -22,18 +22,16 @@ jobs:
           tailscale ip -4 | tee ip.txt
           echo "TS_IP=$(cat ip.txt)" >> $GITHUB_ENV
 
-      - name: Show SSH connection details
+      - name: Show SSH info
         run: |
           echo "=============================="
           echo " SSH READY (Termius)"
           echo " Address : $TS_IP"
           echo " Port    : 22"
           echo " User    : runner"
-          echo " Auth    : SSH key (no password)"
+          echo " Auth    : SSH key"
           echo "=============================="
 
-      - name: Keep runner alive
+      - name: Keep alive
         run: |
-          while true; do
-            sleep 300
-          done
+          while true; do sleep 300; done
